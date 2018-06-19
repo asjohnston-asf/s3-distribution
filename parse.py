@@ -52,7 +52,7 @@ def create_data_frame(log_entries):
                'Error_Code', 'Bytes_Sent', 'Object_Size', 'Total_Time',
                'Turn_Around_Time', 'Referrer', 'User_Agent', 'Version_Id']
     df = pd.DataFrame(log_entries, columns=columns)
-    df.drop(['Bucket_Owner', 'Bucket', 'Requester', 'Request_ID', 'Operation', 'HTTP_status', 'Error_Code', 'Total_Time', 'Turn_Around_Time', 'Version_Id'], axis=1)
+    df.drop(['Bucket_Owner', 'Requester', 'Request_ID', 'Operation', 'HTTP_status', 'Error_Code', 'Total_Time', 'Turn_Around_Time', 'Version_Id'], axis=1)
     df = df.mask(df == '-')
     df['Bytes_Sent'].fillna(0, inplace=True)
     df['Bytes_Sent'] = df.Bytes_Sent.astype(int)
@@ -67,14 +67,14 @@ def add_computed_fields(df):
     df['Time'] = df.Time.map(lambda x: re.sub(':', ' ', x, 1))
     df['Time'] = df.Time.apply(dateutil.parser.parse)
     df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
-    df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0])
+    df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0] if x == x else '')
     df['Granule_Time'] = df.Key.apply(lambda x: datetime.strptime(x[17:32], '%Y%m%dT%H%M%S'))
     df['Product_Age'] = df.apply(lambda x: (x.Time - x.Granule_Time).days, axis=1)
 
 
 def output_to_csv(df, output_file_name):
-    grouped = df.groupby(['User_Id', 'Remote_IP', 'Key', 'Object_Size', 'Referrer', 'User_Agent', 'Product_Age'])
-    final = grouped.agg({'Time': 'min', 'Bytes_Sent': 'sum'})
+    final = df.groupby(['User_Id', 'Remote_IP', 'Bucket', 'Key', 'Object_Size', 'Referrer', 'User_Agent', 'Product_Age'])
+    final = final.agg({'Time': 'min', 'Bytes_Sent': 'sum'})
     final = final.reset_index()
     aws_cidr_blocks = get_aws_cidr_blocks()
     final['Platform'] = final.Key.apply(lambda x: x.split('_')[0])
