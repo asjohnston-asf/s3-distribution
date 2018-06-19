@@ -65,7 +65,7 @@ def add_computed_fields(df):
     df['Time'] = df.Time.map(lambda x: x[x.find('[') + 1:x.find(' ')])
     df['Time'] = df.Time.map(lambda x: re.sub(':', ' ', x, 1))
     df['Time'] = df.Time.apply(dateutil.parser.parse)
-    df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else 'none')
+    df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
     df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0])
     df['Granule_Time'] = df.Key.apply(lambda x: datetime.strptime(x[17:32], '%Y%m%dT%H%M%S'))
     df['Platform'] = df.Key.apply(lambda x: x.split('_')[0])
