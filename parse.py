@@ -74,7 +74,7 @@ def add_computed_fields(df):
 
 def output_to_csv(df, output_file_name):
     final = df.groupby(['User_Id', 'Remote_IP', 'Bucket', 'Key', 'Object_Size', 'Referrer', 'User_Agent', 'Product_Age'])
-    final = final.agg({'Time': 'min', 'Bytes_Sent': 'sum'})
+    final = final.agg({'Time': 'min', 'Bytes_Sent': 'sum', 'Request_URI': 'count'})
     final = final.reset_index()
     aws_cidr_blocks = get_aws_cidr_blocks()
     final['Platform'] = final.Key.apply(lambda x: x.split('_')[0])
