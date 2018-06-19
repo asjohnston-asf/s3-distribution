@@ -41,7 +41,7 @@ def get_log_entries(log_file):
     for i in r:
         i[2] = i[2] + ' ' + i[3]  # repair date field
         del i[3]
-        if len(i) <= 18:
+        if len(i) == 18:
             log_entries.append(i)
     return log_entries
 
@@ -52,6 +52,7 @@ def create_data_frame(log_entries):
                'Error_Code', 'Bytes_Sent', 'Object_Size', 'Total_Time',
                'Turn_Around_Time', 'Referrer', 'User_Agent', 'Version_Id']
     df = pd.DataFrame(log_entries, columns=columns)
+    df.drop(['Bucket_Owner', 'Bucket', 'Requester', 'Request_ID', 'Operation', 'HTTP_status', 'Error_Code', 'Total_Time', 'Turn_Around_Time', 'Version_Id'], axis=1)
     df = df.mask(df == '-')
     df['Bytes_Sent'].fillna(0, inplace=True)
     df['Bytes_Sent'] = df.Bytes_Sent.astype(int)
@@ -60,26 +61,28 @@ def create_data_frame(log_entries):
 
 
 def add_computed_fields(df):
-    aws_cidr_blocks = get_aws_cidr_blocks()
-    df['User_Id'] = df.Request_URI.apply(lambda x: re.search('&userid=(\S+) ', x).group(1))
+    userid_pattern = re.compile('&userid=(\S+) ')
+    df['User_Id'] = df.Request_URI.apply(lambda x: userid_pattern.search(x).group(1))
     df['Time'] = df.Time.map(lambda x: x[x.find('[') + 1:x.find(' ')])
     df['Time'] = df.Time.map(lambda x: re.sub(':', ' ', x, 1))
     df['Time'] = df.Time.apply(dateutil.parser.parse)
     df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
     df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0])
     df['Granule_Time'] = df.Key.apply(lambda x: datetime.strptime(x[17:32], '%Y%m%dT%H%M%S'))
-    df['Platform'] = df.Key.apply(lambda x: x.split('_')[0])
-    df['Beam_Mode'] = df.Key.apply(lambda x: x.split('_')[1])
-    df['Product_Type'] = df.Key.apply(lambda x: x.split('_')[2])
-    df['Percent_Downloaded'] = df.apply(lambda x: float(x.Bytes_Sent) / float(x.Object_Size), axis=1)
     df['Product_Age'] = df.apply(lambda x: (x.Time - x.Granule_Time).days, axis=1)
-    df['AWS_Region'] = df.Remote_IP.apply(lambda x: get_aws_region(x, aws_cidr_blocks))
 
 
 def output_to_csv(df, output_file_name):
-    grouped = df.groupby(['User_Id', 'Remote_IP', 'Key', 'Object_Size', 'Referrer', 'User_Agent', 'Product_Type', 'Beam_Mode', 'Platform', 'Product_Age', 'AWS_Region'])
-    final = grouped.agg({'Time': 'min', 'Percent_Downloaded': 'sum', 'Bytes_Sent': 'sum'})
-    final.to_csv(output_file_name, index=True)
+    grouped = df.groupby(['User_Id', 'Remote_IP', 'Key', 'Object_Size', 'Referrer', 'User_Agent', 'Product_Age'])
+    final = grouped.agg({'Time': 'min', 'Bytes_Sent': 'sum'})
+    final = final.reset_index()
+    aws_cidr_blocks = get_aws_cidr_blocks()
+    final['Platform'] = final.Key.apply(lambda x: x.split('_')[0])
+    final['Beam_Mode'] = final.Key.apply(lambda x: x.split('_')[1])
+    final['Product_Type'] = final.Key.apply(lambda x: x.split('_')[2])
+    final['Percent_Downloaded'] = final.apply(lambda x: float(x.Bytes_Sent) / float(x.Object_Size), axis=1)
+    final['AWS_Region'] = final.Remote_IP.apply(lambda x: get_aws_region(x, aws_cidr_blocks))
+    final.to_csv(output_file_name, index=False)
 
 
 if __name__ == '__main__':
