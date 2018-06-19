@@ -4,7 +4,7 @@ import csv
 import re
 import dateutil
 import pandas as pd
-from urlparse import urlparse
+from urllib.parse import urlparse
 from datetime import datetime
 from sys import argv
 
@@ -20,8 +20,8 @@ def get_log_entries(log_file):
     return log_entries
 
 
-    columns = ['Bucket_Owner', 'Bucket', 'Time', 'Remote_IP', 'Requester',
 def create_data_frame(log_entries):
+    columns = ['Bucket_Owner', 'Bucket', 'Time', 'Remote_IP', 'Requester',
                'Request_ID', 'Operation', 'Key', 'Request_URI', 'HTTP_status',
                'Error_Code', 'Bytes_Sent', 'Object_Size', 'Total_Time',
                'Turn_Around_Time', 'Referrer', 'User_Agent', 'Version_Id']
