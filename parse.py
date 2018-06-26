@@ -1,5 +1,8 @@
 # From https://gist.github.com/zmjones/8862947
 
+# grep -hE 'gsfc-ngap-p-.* REST\.GET\.OBJECT .*"GET /S1.*\.zip.*userid=.*" (200|206) ' /storage/syslog/awss3access/2018/0[23456]/accesslog > access.log
+# python parse.py access.log access.csv
+
 import csv
 import re
 import dateutil
