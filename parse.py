@@ -41,19 +41,19 @@ def get_log_entries(log_file):
 
 
 def create_data_frame(log_entries):
-    columns = ['Bucket_Owner', 'Bucket', 'Time', 'Time_Zone', 'Remote_IP', 'Requester',
-               'Request_ID', 'Operation', 'Key', 'Request_URI', 'HTTP_status',
-               'Error_Code', 'Bytes_Sent', 'Object_Size', 'Total_Time',
+    columns = ['Bucket_Owner', 'Bucket', 'Request_Time', 'Time_Zone', 'IP_Address', 'Requester',
+               'Request_ID', 'Operation', 'File_Name', 'Request_URI', 'HTTP_Status',
+               'Error_Code', 'Bytes_Downloaded', 'File_Size', 'Total_Time',
                'Turn_Around_Time', 'Referrer', 'User_Agent', 'Version_Id']
     df = pd.DataFrame(log_entries, columns=columns)
 
     df = df.mask(df == '-')
-    df['Bytes_Sent'].fillna(0, inplace=True)
-    df['Bytes_Sent'] = df.Bytes_Sent.astype(int)
+    df['Bytes_Downloaded'].fillna(0, inplace=True)
+    df['Bytes_Downloaded'] = df.Bytes_Downloaded.astype(int)
 
     userid_pattern = re.compile('&userid=(\S+) ')
     df['User_Id'] = df.Request_URI.apply(lambda x: userid_pattern.search(x).group(1))
-    df['Time'] = df.Time.apply(lambda x: datetime.strptime(x[1:12], '%d/%b/%Y'))
+    df['Request_Date'] = df.Request_Time.apply(lambda x: datetime.strptime(x[1:12], '%d/%b/%Y'))
     df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
     df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0] if x == x else '')
 
@@ -61,22 +61,22 @@ def create_data_frame(log_entries):
 
 
 def output_to_csv(df, output_file_name):
-    final = df.groupby(['User_Id', 'Remote_IP', 'Bucket', 'Key', 'Object_Size', 'Referrer', 'User_Agent', 'Time'])
-    final = final.agg({'Bytes_Sent': 'sum', 'Request_URI': 'count'})
+    final = df.groupby(['User_Id', 'IP_Address', 'Bucket', 'File_Name', 'File_Size', 'Referrer', 'User_Agent', 'Request_Date'])
+    final = final.agg({'Bytes_Downloaded': 'sum', 'Request_URI': 'count'})
     final = final.reset_index()
 
-    final['Platform'] = final.Key.apply(lambda x: x.split('_')[0])
-    final['Beam_Mode'] = final.Key.apply(lambda x: x.split('_')[1])
-    final['Product_Type'] = final.Key.apply(lambda x: x.split('_')[2])
-    final['Granule_Time'] = final.Key.apply(lambda x: datetime.strptime(x[17:25], '%Y%m%d'))
-    final['Percent_Downloaded'] = final.apply(lambda x: float(x.Bytes_Sent) / float(x.Object_Size), axis=1)
-    final['Product_Age'] = final.apply(lambda x: (x.Time - x.Granule_Time).days, axis=1)
+    final['Platform'] = final.File_Name.apply(lambda x: x.split('_')[0])
+    final['Beam_Mode'] = final.File_Name.apply(lambda x: x.split('_')[1])
+    final['Product_Type'] = final.File_Name.apply(lambda x: x.split('_')[2])
+    final['Aquisition_Date'] = final.File_Name.apply(lambda x: datetime.strptime(x[17:25], '%Y%m%d'))
+    final['Percent_of_File_Downloaded'] = final.apply(lambda x: float(x.Bytes_Downloaded) / float(x.File_Size), axis=1)
+    final['Product_Age_in_Days_at_Time_of_Download'] = final.apply(lambda x: (x.Request_Date - x.Aquisition_Date).days, axis=1)
 
     aws_cidr_blocks = get_aws_cidr_blocks()
-    m = {}
-    for ip in final.Remote_IP.unique():
-        m[ip] = get_aws_region(ip, aws_cidr_blocks)
-    final['AWS_Region'] = final.Remote_IP.apply(lambda x: m[x])
+    region_map = {}
+    for ip in final.IP_Address.unique():
+        region_map[ip] = get_aws_region(ip, aws_cidr_blocks)
+    final['AWS_Region'] = final.IP_Address.apply(lambda x: region_map[x])
 
     final.to_csv(output_file_name, index=False)
 
