@@ -49,7 +49,7 @@ def create_data_frame(log_entries):
     df['Bytes_Downloaded'].fillna(0, inplace=True)
     df['Bytes_Downloaded'] = df.Bytes_Downloaded.astype(int)
 
-    userid_pattern = re.compile('&userid=(\S+) ')
+    userid_pattern = re.compile('&userid=([a-zA-Z0-9\._]+)')
     df['User_Id'] = df.Request_URI.apply(lambda x: userid_pattern.search(x).group(1))
     df['Request_Date'] = df.Request_Time.apply(lambda x: datetime.strptime(x[1:12], '%d/%b/%Y'))
     df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
