@@ -43,6 +43,7 @@ def create_data_frame(log_entries):
                'Error_Code', 'Bytes_Downloaded', 'File_Size', 'Total_Time',
                'Turn_Around_Time', 'Referrer', 'User_Agent', 'Version_Id']
     df = pd.DataFrame(log_entries, columns=columns)
+    df.drop_duplicates(subset='Request_ID', inplace=True)
 
     df = df.mask(df == '-')
     df['Bytes_Downloaded'].fillna(0, inplace=True)
