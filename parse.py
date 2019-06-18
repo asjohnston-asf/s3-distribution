@@ -1,7 +1,6 @@
 # From https://gist.github.com/zmjones/8862947
 
 import csv
-import re
 import pandas as pd
 import requests
 import json
@@ -33,7 +32,7 @@ def get_aws_region(ip, blocks):
 
 def get_log_entries(log_file):
     r = csv.reader(open(log_file), delimiter=' ', quotechar='"')
-    log_entries = [record for record in r if len(record) == 19]
+    log_entries = [record for record in r if len(record) == 25]
     return log_entries
 
 
@@ -41,7 +40,8 @@ def create_data_frame(log_entries):
     columns = ['Bucket_Owner', 'Bucket', 'Request_Time', 'Time_Zone', 'IP_Address', 'Requester',
                'Request_ID', 'Operation', 'File_Name', 'Request_URI', 'HTTP_Status',
                'Error_Code', 'Bytes_Downloaded', 'File_Size', 'Total_Time',
-               'Turn_Around_Time', 'Referrer', 'User_Agent', 'Version_Id']
+               'Turn_Around_Time', 'Referrer', 'User_Agent', 'Version_Id',
+               'Host_Id', 'Signature_Version', 'Cipher_Suite', 'Authentication_Type', 'Host_Header', 'TLS_Version']
     df = pd.DataFrame(log_entries, columns=columns)
     df.drop_duplicates(subset='Request_ID', inplace=True)
 
@@ -49,8 +49,7 @@ def create_data_frame(log_entries):
     df['Bytes_Downloaded'].fillna(0, inplace=True)
     df['Bytes_Downloaded'] = df.Bytes_Downloaded.astype(int)
 
-    userid_pattern = re.compile('userid=([a-zA-Z0-9\._]+)')
-    df['User_Id'] = df.Request_URI.apply(lambda x: userid_pattern.search(x).group(1))
+    df['User_Id'] = df.Requester.apply(lambda x: x.split('/')[-1])
     df['Request_Date'] = df.Request_Time.apply(lambda x: datetime.strptime(x[1:12], '%d/%b/%Y'))
     df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
     df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0] if x == x else '')
@@ -59,12 +58,12 @@ def create_data_frame(log_entries):
 
 
 def output_to_csv(df, output_file_name):
-    final = df.groupby(['User_Id', 'IP_Address', 'Bucket', 'File_Name', 'File_Size', 'Referrer', 'User_Agent', 'Request_Date'])
+    final = df.groupby(['User_Id', 'IP_Address', 'File_Name', 'File_Size', 'User_Agent', 'Request_Date'])
     final = final.agg({'Bytes_Downloaded': 'sum', 'Request_URI': 'count'})
     final = final.reset_index()
 
-    final['Platform'] = final.File_Name.apply(lambda x: x.split('_')[0])
-    final['Beam_Mode'] = final.File_Name.apply(lambda x: x.split('_')[1])
+    #final['Platform'] = final.File_Name.apply(lambda x: x.split('_')[0])
+    #final['Beam_Mode'] = final.File_Name.apply(lambda x: x.split('_')[1])
     final['Product_Type'] = final.File_Name.apply(lambda x: x.split('_')[2])
     final['Aquisition_Date'] = final.File_Name.apply(lambda x: datetime.strptime(x[17:25], '%Y%m%d'))
     final['Percent_of_File_Downloaded'] = final.apply(lambda x: float(x.Bytes_Downloaded) / float(x.File_Size), axis=1)
