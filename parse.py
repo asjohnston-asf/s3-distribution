@@ -50,24 +50,24 @@ def create_data_frame(log_entries):
     df['Bytes_Downloaded'] = df.Bytes_Downloaded.astype(int)
 
     df['User_Id'] = df.Requester.apply(lambda x: x.split('/')[-1])
-    df['Request_Date'] = df.Request_Time.apply(lambda x: datetime.strptime(x[1:12], '%d/%b/%Y'))
-    df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
-    df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0] if x == x else '')
+    df['Request_Month'] = df.Request_Time.apply(lambda x: datetime.strptime(x[4:12], '%b/%Y'))
+    #df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
+    #df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0] if x == x else '')
 
     return df
 
 
 def output_to_csv(df, output_file_name):
-    final = df.groupby(['User_Id', 'IP_Address', 'File_Name', 'File_Size', 'User_Agent', 'Request_Date'])
-    final = final.agg({'Bytes_Downloaded': 'sum', 'Request_URI': 'count'})
+    final = df.groupby(['User_Id', 'IP_Address', 'File_Name', 'File_Size', 'Request_Month'])
+    final = final.agg({'Bytes_Downloaded': 'sum'})
     final = final.reset_index()
 
     #final['Platform'] = final.File_Name.apply(lambda x: x.split('_')[0])
     #final['Beam_Mode'] = final.File_Name.apply(lambda x: x.split('_')[1])
     final['Product_Type'] = final.File_Name.apply(lambda x: x.split('_')[2])
-    final['Aquisition_Date'] = final.File_Name.apply(lambda x: datetime.strptime(x[17:25], '%Y%m%d'))
+    #final['Aquisition_Date'] = final.File_Name.apply(lambda x: datetime.strptime(x[17:25], '%Y%m%d'))
     final['Percent_of_File_Downloaded'] = final.apply(lambda x: float(x.Bytes_Downloaded) / float(x.File_Size), axis=1)
-    final['Product_Age_in_Days_at_Time_of_Download'] = final.apply(lambda x: (x.Request_Date - x.Aquisition_Date).days, axis=1)
+    #final['Product_Age_in_Days_at_Time_of_Download'] = final.apply(lambda x: (x.Request_Date - x.Aquisition_Date).days, axis=1)
 
     aws_cidr_blocks = get_aws_cidr_blocks()
     region_map = {}
