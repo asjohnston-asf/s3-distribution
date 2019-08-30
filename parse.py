@@ -32,7 +32,7 @@ def get_aws_region(ip, blocks):
 
 def get_log_entries(log_file):
     r = csv.reader(open(log_file), delimiter=' ', quotechar='"')
-    log_entries = [record for record in r if len(record) == 25]
+    log_entries = (record for record in r if len(record) == 25)
     return log_entries
 
 
