@@ -3,7 +3,6 @@
 import csv
 import pandas as pd
 import requests
-import json
 from ipaddress import ip_network, ip_address
 from urllib.parse import urlparse
 from datetime import datetime
@@ -13,11 +12,15 @@ from sys import argv
 def get_aws_cidr_blocks():
     response = requests.get('https://ip-ranges.amazonaws.com/ip-ranges.json')
     response.raise_for_status()
-    data = json.loads(response.text)
+    data = response.json()
     aws_cidr_blocks = {}
     for item in data['prefixes']:
-        if 'ip_prefix' in item:
+        if item['service'] == 'AMAZON':
             block = ip_network(item['ip_prefix'])
+            aws_cidr_blocks[block] = item['region']
+    for item in data['ipv6_prefixes']:
+        if item['service'] == 'AMAZON':
+            block = ip_network(item['ipv6_prefix'])
             aws_cidr_blocks[block] = item['region']
     return aws_cidr_blocks
 
