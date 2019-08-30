@@ -34,17 +34,13 @@ def get_aws_region(ip, blocks):
 
 
 def get_log_entries(log_file):
-    r = csv.reader(open(log_file), delimiter=' ', quotechar='"')
-    log_entries = (record for record in r if len(record) == 25)
+    reader = csv.reader(open(log_file), delimiter=' ', quotechar='"')
+    log_entries = ([r[2], r[4], r[5], r[6], r[8], r[12], r[13], r[16], r[17]] for r in reader if len(r) == 25)
     return log_entries
 
 
 def create_data_frame(log_entries):
-    columns = ['Bucket_Owner', 'Bucket', 'Request_Time', 'Time_Zone', 'IP_Address', 'Requester',
-               'Request_ID', 'Operation', 'File_Name', 'Request_URI', 'HTTP_Status',
-               'Error_Code', 'Bytes_Downloaded', 'File_Size', 'Total_Time',
-               'Turn_Around_Time', 'Referrer', 'User_Agent', 'Version_Id',
-               'Host_Id', 'Signature_Version', 'Cipher_Suite', 'Authentication_Type', 'Host_Header', 'TLS_Version']
+    columns = ['Request_Time', 'IP_Address', 'Requester', 'Request_ID', 'File_Name', 'Bytes_Downloaded', 'File_Size', 'Referrer', 'User_Agent']
     df = pd.DataFrame(log_entries, columns=columns)
     df.drop_duplicates(subset='Request_ID', inplace=True)
 
@@ -62,7 +58,7 @@ def create_data_frame(log_entries):
 
 def output_to_csv(df, output_file_name):
     final = df.groupby(['User_Id', 'IP_Address', 'File_Name', 'File_Size', 'User_Agent', 'Request_Date'])
-    final = final.agg({'Bytes_Downloaded': 'sum', 'Request_URI': 'count'})
+    final = final.agg({'Bytes_Downloaded': 'sum', 'Request_ID': 'count'})
     final = final.reset_index()
 
     #final['Platform'] = final.File_Name.apply(lambda x: x.split('_')[0])
