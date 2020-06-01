@@ -15,8 +15,8 @@ from argparse import ArgumentParser
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('--elasticsearch-url', required=True)
-    parser.add_argument('--start-date', help='YYYYMMDD')
-    parser.add_argument('--end-date', help='YYYYMMDD')
+    parser.add_argument('--start-date', required=True, help='YYYYMMDD')
+    parser.add_argument('--end-date', required=True, help='YYYYMMDD')
     args = parser.parse_args()
     return args
 
