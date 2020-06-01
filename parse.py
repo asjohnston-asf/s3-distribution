@@ -73,6 +73,23 @@ def get_records(report_date, elasticsearch_url):
                             'minimum_should_match': 1,
                             'should': [
                                 {
+                                    'match': {
+                                        'response': 200,
+                                    },
+                                },
+                                {
+                                    'match': {
+                                        'response': 206,
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    {
+                        'bool': {
+                            'minimum_should_match': 1,
+                            'should': [
+                                {
                                     'match_phrase': {
                                         'bucket': f'asf-ngap2-p-*',
                                     },
