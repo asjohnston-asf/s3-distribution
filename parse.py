@@ -9,6 +9,16 @@ from datetime import datetime
 from sys import argv
 from elasticsearch6 import Elasticsearch
 from elasticsearch6.helpers import scan
+from argparse import ArgumentParser
+
+
+def get_args():
+    parser = ArgumentParser()
+    parser.add_argument('--elasticsearch-url', required=True)
+    parser.add_argument('--start-date', help='YYYYMMDD')
+    parser.add_argument('--end-date', help='YYYYMMDD')
+    args = parser.parse_args()
+    return args
 
 
 def get_aws_cidr_blocks():
@@ -131,10 +141,10 @@ def output_to_csv(df, output_file_name):
 
 
 if __name__ == '__main__':
-    elasticsearchurl = argv[1]
-    daterange = pd.date_range('2020-05-01', '2020-05-01')
+    args = get_args()
+    daterange = pd.date_range(args.start_date, args.end_date)
     for day in daterange:
         print(day.strftime('%Y%m%d'))
-        log_entries = get_records(day, elasticsearchurl)
+        log_entries = get_records(day, args.elasticsearch_url)
         df = create_data_frame(log_entries)
         output_to_csv(df, f'{day.strftime("%Y%m%d")}.csv')
