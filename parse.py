@@ -64,8 +64,10 @@ def get_records(report_date, elasticsearch_url):
                         },
                     },
                     {
-                        'match_phrase': {
-                            'object': '*.zip',
+                        'range': {
+                            'size': {
+                                'gte': 2097152,
+                            },
                         },
                     },
                     {
