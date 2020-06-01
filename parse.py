@@ -92,17 +92,16 @@ def get_records(report_date, elasticsearch_url):
         },
     }
 
+    desired_fields = ['ip', 'object', 'response', 'volume', 'size', 'user_agent', 'userid', 'date', 'eventid']
     index = f'dls.*'
+
     es_client = Elasticsearch(elasticsearch_url)
-    results = scan(es_client, query=query, index=index, doc_type='log')
+    results = scan(es_client, query=query, index=index, doc_type='log', _source_includes=desired_fields)
     records = (r['_source'] for r in results)
     return records
 
 
 def create_data_frame(log_entries):
-    keys = ['ip', 'object', 'response', 'volume', 'size', 'user_agent', 'userid', 'date', 'eventid']
-    sliced_entries = ({key: entry[key] for key in entry if key in keys} for entry in log_entries)
-
     df = pd.DataFrame.from_dict(log_entries)
     df.drop_duplicates(subset='eventid', inplace=True)
 
@@ -135,6 +134,7 @@ if __name__ == '__main__':
     elasticsearchurl = argv[1]
     daterange = pd.date_range('2020-05-01', '2020-05-01')
     for day in daterange:
+        print(day.strftime('%Y%m%d'))
         log_entries = get_records(day, elasticsearchurl)
         df = create_data_frame(log_entries)
         output_to_csv(df, f'{day.strftime("%Y%m%d")}.csv')
