@@ -7,6 +7,8 @@ from ipaddress import ip_network, ip_address
 from urllib.parse import urlparse
 from datetime import datetime
 from sys import argv
+from elasticsearch6 import Elasticsearch
+from elasticsearch6.helpers import scan
 
 
 def get_aws_cidr_blocks():
@@ -33,53 +35,106 @@ def get_aws_region(ip, blocks):
     return ''
 
 
-def get_log_entries(log_file):
-    reader = csv.reader(open(log_file), delimiter=' ', quotechar='"')
-    log_entries = ([r[2], r[4], r[5], r[6], r[8], r[12], r[13], r[16], r[17]] for r in reader if len(r) == 25)
-    return log_entries
+def get_records(report_date, elasticsearch_url):
+    query = {
+        'query': {
+            'bool': {
+                'filter': [
+                    {
+                        'range': {
+                            'date': {
+                                'gte': report_date.strftime('%Y-%m-%d'),
+                                'lte': report_date.strftime('%Y-%m-%d'),
+                            },
+                        },
+                    },
+                    {
+                        'match': {
+                            'action': 'REST.GET.OBJECT',
+                        },
+                    },
+                    {
+                        'match_phrase': {
+                            'object': '*.zip',
+                        },
+                    },
+                    {
+                        'bool': {
+                            'minimum_should_match': 1,
+                            'should': [
+                                {
+                                    'match_phrase': {
+                                        'bucket': f'asf-ngap2-p-*',
+                                    },
+                                },
+                                {
+                                    'match_phrase': {
+                                        'bucket': f'asf-ngap2w-p-*',
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+                'must_not': [
+                    {
+                        'match_phrase_prefix': {
+                            'user_agent': 'RAIN Egress App for userid=',
+                        },
+                    },
+                    {
+                        'match_phrase_prefix': {
+                            'user_agent': 'Egress App for userid=',
+                        },
+                    },
+                ],
+            },
+        },
+    }
+
+    index = f'dls.*'
+    es_client = Elasticsearch(elasticsearch_url)
+    results = scan(es_client, query=query, index=index, doc_type='log')
+    records = (r['_source'] for r in results)
+    return records
 
 
 def create_data_frame(log_entries):
-    columns = ['Request_Time', 'IP_Address', 'Requester', 'Request_ID', 'File_Name', 'Bytes_Downloaded', 'File_Size', 'Referrer', 'User_Agent']
-    df = pd.DataFrame(log_entries, columns=columns)
-    df.drop_duplicates(subset='Request_ID', inplace=True)
+    keys = ['ip', 'object', 'response', 'volume', 'size', 'user_agent', 'userid', 'date', 'eventid']
+    sliced_entries = ({key: entry[key] for key in entry if key in keys} for entry in log_entries)
 
-    df = df.mask(df == '-')
-    df['Bytes_Downloaded'].fillna(0, inplace=True)
-    df['Bytes_Downloaded'] = df.Bytes_Downloaded.astype(int)
+    df = pd.DataFrame.from_dict(log_entries)
+    df.drop_duplicates(subset='eventid', inplace=True)
 
-    df['User_Id'] = df.Requester.apply(lambda x: x.split('/')[-1])
-    df['Request_Date'] = df.Request_Time.apply(lambda x: datetime.strptime(x[1:12], '%d/%b/%Y'))
-    df['Referrer'] = df.Referrer.apply(lambda x: urlparse(x).hostname if x == x else '')
-    df['User_Agent'] = df.User_Agent.apply(lambda x: str(x).split('/')[0] if x == x else '')
+    df['date'] = df.date.apply(lambda x: datetime.strptime(x[:10], '%Y-%m-%d'))
+    df['user_agent'] = df.user_agent.apply(lambda x: str(x).split('/')[0])
 
     return df
 
 
 def output_to_csv(df, output_file_name):
-    final = df.groupby(['User_Id', 'IP_Address', 'File_Name', 'File_Size', 'User_Agent', 'Request_Date'])
-    final = final.agg({'Bytes_Downloaded': 'sum', 'Request_ID': 'count'})
+    final = df.groupby(['userid', 'ip', 'object', 'size', 'user_agent', 'date'])
+    final = final.agg({'volume': 'sum', 'eventid': 'count'})
     final = final.reset_index()
 
-    #final['Platform'] = final.File_Name.apply(lambda x: x.split('_')[0])
-    #final['Beam_Mode'] = final.File_Name.apply(lambda x: x.split('_')[1])
-    final['Product_Type'] = final.File_Name.apply(lambda x: x.split('_')[2])
-    final['Aquisition_Date'] = final.File_Name.apply(lambda x: datetime.strptime(x[17:25], '%Y%m%d'))
-    final['Percent_of_File_Downloaded'] = final.apply(lambda x: float(x.Bytes_Downloaded) / float(x.File_Size), axis=1)
-    final['Product_Age_in_Days_at_Time_of_Download'] = final.apply(lambda x: (x.Request_Date - x.Aquisition_Date).days, axis=1)
+    final['product_type'] = final.object.apply(lambda x: x.split('_')[2])
+    final['aquisition_date'] = final.object.apply(lambda x: datetime.strptime(x[17:25], '%Y%m%d'))
+    final['percent_of_file_downloaded'] = final.apply(lambda x: float(x.volume) / float(x['size']), axis=1)
+    final['product_age_in_days_at_time_of_download'] = final.apply(lambda x: (x.date - x.aquisition_date).days, axis=1)
 
     aws_cidr_blocks = get_aws_cidr_blocks()
     region_map = {}
-    for ip in final.IP_Address.unique():
+    for ip in final.ip.unique():
         region_map[ip] = get_aws_region(ip, aws_cidr_blocks)
-    final['AWS_Region'] = final.IP_Address.apply(lambda x: region_map[x])
+    final['aws_region'] = final.ip.apply(lambda x: region_map[x])
 
     final.to_csv(output_file_name, index=False)
 
 
 if __name__ == '__main__':
-    input_file_name = argv[1]
-    output_file_name = argv[2]
-    log_entries = get_log_entries(input_file_name)
-    df = create_data_frame(log_entries)
-    output_to_csv(df, output_file_name)
+    elasticsearchurl = argv[1]
+    daterange = pd.date_range('2020-05-01', '2020-05-01')
+    for day in daterange:
+        log_entries = get_records(day, elasticsearchurl)
+        df = create_data_frame(log_entries)
+        output_to_csv(df, f'{day.strftime("%Y%m%d")}.csv')
