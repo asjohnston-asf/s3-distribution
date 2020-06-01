@@ -122,7 +122,7 @@ def get_records(report_date, elasticsearch_url):
     }
 
     desired_fields = ['ip', 'object', 'response', 'volume', 'size', 'user_agent', 'userid', 'date', 'eventid']
-    index = f'dls.*'
+    index = f'dls.{report_date.year}.*'
 
     es_client = Elasticsearch(elasticsearch_url)
     results = scan(es_client, query=query, index=index, doc_type='log', _source_includes=desired_fields)
